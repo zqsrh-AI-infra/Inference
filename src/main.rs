@@ -31,6 +31,14 @@ struct Args {
 fn get_config_path(args: &Args) -> Option<PathBuf> {
     args.config.clone()
         .or_else(|| std::env::var("INFERENCE_CONFIG").ok().map(PathBuf::from))
+        .or_else(|| {
+            let default_path = PathBuf::from("config/config.yaml");
+            if default_path.exists() {
+                Some(default_path)
+            } else {
+                None
+            }
+        })
 }
 
 fn get_default_model_id(args: &Args, config: &AppConfig) -> Option<String> {
@@ -130,4 +138,7 @@ async fn shutdown_signal() {
     }
 
     tracing::info!("Shutdown signal received");
+
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    tracing::info!("Forcing shutdown after timeout");
 }

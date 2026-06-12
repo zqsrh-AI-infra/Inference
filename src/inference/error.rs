@@ -14,6 +14,9 @@ pub enum InferenceError {
     #[error("Model not loaded: {0}")]
     ModelNotLoaded(String),
 
+    #[error("Model is loading, please wait: {0}")]
+    ModelLoading(String),
+
     #[error("Backend error: {0}")]
     BackendError(String),
 
@@ -41,6 +44,7 @@ impl IntoResponse for InferenceError {
         let (status, error_message) = match &self {
             InferenceError::ModelNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
             InferenceError::ModelNotLoaded(_) => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
+            InferenceError::ModelLoading(_) => (StatusCode::ACCEPTED, self.to_string()),
             InferenceError::BackendError(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
             InferenceError::InvalidRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
             InferenceError::CapabilityNotSupported(_) => (StatusCode::BAD_REQUEST, self.to_string()),

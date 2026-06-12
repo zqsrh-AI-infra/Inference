@@ -7,12 +7,11 @@ use crate::inference::{
 use async_trait::async_trait;
 use llama_rs::Engine;
 use llama_rs::EngineConfig;
-use llama_rs::model::KVCacheType;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
-use tracing::{info, warn};
+use tracing::info;
 
 pub struct GgufBackend {
     config: ModelConfig,
@@ -107,7 +106,7 @@ impl GgufBackend {
         let timeout_secs = input
             .get("timeout")
             .and_then(|v| v.as_u64())
-            .unwrap_or(60);
+            .unwrap_or(self.config.inference_timeout_secs);
 
         let messages: Vec<ChatMessage> = input
             .get("messages")

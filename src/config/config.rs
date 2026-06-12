@@ -79,6 +79,12 @@ pub struct ModelConfig {
     pub batch_size: Option<usize>,
     #[serde(default)]
     pub max_sequence_length: Option<usize>,
+    #[serde(default = "default_inference_timeout")]
+    pub inference_timeout_secs: u64,
+}
+
+fn default_inference_timeout() -> u64 {
+    300
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

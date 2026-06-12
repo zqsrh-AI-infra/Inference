@@ -70,6 +70,7 @@ fn create_test_model_config(id: &str) -> ModelConfig {
         },
         batch_size: None,
         max_sequence_length: None,
+        inference_timeout_secs: 300,
     }
 }
 

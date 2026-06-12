@@ -1,0 +1,23 @@
+# config.yaml
+server:
+  host: "0.0.0.0"
+  port: 8080
+  workers: 4
+
+models:
+  - id: "gemma-4-e4b-it"
+    name: "Gemma 4B IT"
+    backend: "Gguf"
+    path: "/Users/z/.lmstudio/models/lmstudio-community/gemma-4-E4B-it-GGUF/gemma-4-E4B-it-Q4_K_M.gguf"
+    capabilities:
+      - chat
+    device:
+      device_type: "auto"
+    inference_timeout_secs: 600
+
+
+default_model: "gemma-4-e4b-it"
+
+logging:
+  level: "info"
+  format: "pretty"

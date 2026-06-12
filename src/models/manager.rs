@@ -7,9 +7,16 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use tracing::info;
 
+#[derive(Debug, Clone)]
+pub struct ModelLoadingState {
+    pub model_id: String,
+    pub started_at: std::time::Instant,
+}
+
 pub struct ModelManager {
     backends: DashMap<String, Arc<dyn ModelBackend>>,
     model_configs: DashMap<String, ModelConfig>,
+    loading_models: DashMap<String, ModelLoadingState>,
     default_model: RwLock<Option<String>>,
 }
 
@@ -18,6 +25,7 @@ impl ModelManager {
         Self {
             backends: DashMap::new(),
             model_configs: DashMap::new(),
+            loading_models: DashMap::new(),
             default_model: RwLock::new(None),
         }
     }
@@ -32,39 +40,58 @@ impl ModelManager {
             )));
         }
 
+        if self.loading_models.contains_key(&model_id) {
+            return Err(InferenceError::ModelLoading(format!(
+                "Model {} is currently being loaded, please wait",
+                model_id
+            )));
+        }
+
+        self.loading_models.insert(model_id.clone(), ModelLoadingState {
+            model_id: model_id.clone(),
+            started_at: std::time::Instant::now(),
+        });
+
         info!("Loading model {} from {:?}", model_id, config.path);
 
-        let backend: Arc<dyn ModelBackend> = match config.backend {
-            BackendType::Onnx => {
-                Arc::new(crate::backends::onnx::OnnxBackend::new(&config)?)
-            }
-            BackendType::Gguf => {
-                Arc::new(crate::backends::gguf::GgufBackend::new(&config)?)
-            }
-            BackendType::Candle => {
-                return Err(InferenceError::BackendError(
-                    "Candle backend not yet implemented".to_string(),
-                ));
-            }
-            BackendType::TensorRT => {
-                return Err(InferenceError::BackendError(
-                    "TensorRT backend not yet implemented".to_string(),
-                ));
-            }
-        };
+        let result = async {
+            let backend: Arc<dyn ModelBackend> = match config.backend {
+                BackendType::Onnx => {
+                    Arc::new(crate::backends::onnx::OnnxBackend::new(&config)?)
+                }
+                BackendType::Gguf => {
+                    Arc::new(crate::backends::gguf::GgufBackend::new(&config)?)
+                }
+                BackendType::Candle => {
+                    return Err(InferenceError::BackendError(
+                        "Candle backend not yet implemented".to_string(),
+                    ));
+                }
+                BackendType::TensorRT => {
+                    return Err(InferenceError::BackendError(
+                        "TensorRT backend not yet implemented".to_string(),
+                    ));
+                }
+            };
 
-        backend.warmup().await?;
+            backend.warmup().await?;
 
-        let model_info = backend.get_model_info();
-        self.backends.insert(model_id.clone(), backend);
-        self.model_configs.insert(model_id.clone(), config);
+            let model_info = backend.get_model_info();
+            self.backends.insert(model_id.clone(), backend);
+            self.model_configs.insert(model_id.clone(), config);
 
-        info!("Model {} loaded successfully", model_id);
-        Ok(model_info)
+            info!("Model {} loaded successfully", model_id);
+            Ok(model_info)
+        }
+        .await;
+
+        self.loading_models.remove(&model_id);
+
+        result
     }
 
     pub async fn unload_model(&self, model_id: &str) -> Result<(), InferenceError> {
-        if let Some(backend) = self.backends.remove(model_id) {
+        if let Some(_backend) = self.backends.remove(model_id) {
             self.model_configs.remove(model_id);
             info!("Model {} unloaded successfully", model_id);
             Ok(())
@@ -98,6 +125,14 @@ impl ModelManager {
         request: InferenceRequest,
     ) -> Result<InferenceResponse, InferenceError> {
         let model_id = request.model.clone();
+
+        if self.is_model_loading(&model_id) {
+            return Err(InferenceError::ModelLoading(format!(
+                "Model {} is currently being loaded, please retry in a few moments",
+                model_id
+            )));
+        }
+
         let backend = self
             .get_model(&model_id)
             .ok_or_else(|| InferenceError::ModelNotFound(model_id.clone()))?;
@@ -122,6 +157,16 @@ impl ModelManager {
 
     pub fn is_model_loaded(&self, model_id: &str) -> bool {
         self.backends.contains_key(model_id)
+    }
+
+    pub fn is_model_loading(&self, model_id: &str) -> bool {
+        self.loading_models.contains_key(model_id)
+    }
+
+    pub fn get_model_loading_time(&self, model_id: &str) -> Option<std::time::Duration> {
+        self.loading_models
+            .get(model_id)
+            .map(|state| state.started_at.elapsed())
     }
 
     pub fn get_models_by_capability(&self, capability: Capability) -> Vec<ModelInfo> {
