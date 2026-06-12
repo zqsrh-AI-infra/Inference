@@ -1,0 +1,42 @@
+[package]
+name = "inference-gateway"
+version = "0.1.0"
+edition = "2021"
+description = "Rust unified model inference service"
+authors = ["Inference Team"]
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+axum = { version = "0.7", features = ["macros"] }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+hyper = { version = "1.1", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+trait_enum = "0.1"
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+async-trait = "0.1"
+once_cell = "1.19"
+dashmap = "5.5"
+parking_lot = "0.12"
+prometheus = "0.13"
+axum-prometheus = "0.1"
+bytes = "1.5"
+futures-util = "0.3"
+pin-project = "1.1"
+serde_yaml = "0.9"
+reqwest = { version = "0.11", features = ["json"] }
+num_cpus = "1.16"
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.12"
+
+[[bin]]
+name = "inference-gateway"
+path = "src/main.rs"
