@@ -4,6 +4,7 @@ server:
   port: 8080
   workers: 4
 
+default_model: "gemma-4-e4b-it"
 models:
   - id: "gemma-4-e4b-it"
     name: "Gemma 4B IT"
@@ -13,11 +14,8 @@ models:
       - chat
     device:
       device_type: "auto"
-    inference_timeout_secs: 600
-
-
-default_model: "gemma-4-e4b-it"
-
+    inference_timeout_secs: 60
+    use_gpu: true
 logging:
   level: "info"
   format: "pretty"

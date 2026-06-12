@@ -52,7 +52,7 @@ impl GgufBackend {
             repeat_penalty: 1.1,
             max_tokens: 128,
             seed: None,
-            use_gpu: false,
+            use_gpu: self.config.use_gpu,
             max_context_len: Some(1024),
             kv_cache_type: Default::default(),
         };

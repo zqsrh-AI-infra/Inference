@@ -81,6 +81,8 @@ pub struct ModelConfig {
     pub max_sequence_length: Option<usize>,
     #[serde(default = "default_inference_timeout")]
     pub inference_timeout_secs: u64,
+    #[serde(default)]
+    pub use_gpu: bool,
 }
 
 fn default_inference_timeout() -> u64 {

@@ -119,6 +119,7 @@ mod model_config_tests {
             batch_size: Some(32),
             max_sequence_length: Some(2048),
             inference_timeout_secs: 300,
+            use_gpu: false,
         }
     }
 

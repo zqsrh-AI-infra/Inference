@@ -2,8 +2,6 @@
 target/
 build/
 dist/
-config/
-docs/
 *.exe
 *.out
 *.log
