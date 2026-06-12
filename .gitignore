@@ -1,7 +1,10 @@
 # 编译产物
 target/
 build/
+docs/
+config/
 dist/
 *.exe
 *.out
 *.log
+.DS_Store
