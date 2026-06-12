@@ -92,12 +92,20 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("Inference Gateway listening on {}", addr);
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    let server = axum::serve(listener, app);
 
-    tracing::info!("Inference Gateway shutting down");
-    Ok(())
+    tokio::select! {
+        result = server => {
+            if let Err(e) = result {
+                tracing::error!("Server error: {}", e);
+            }
+        }
+        _ = shutdown_signal() => {
+            tracing::info!("Shutdown signal received, exiting immediately");
+        }
+    }
+
+    std::process::exit(0);
 }
 
 fn init_tracing(config: &AppConfig) {
@@ -138,7 +146,4 @@ async fn shutdown_signal() {
     }
 
     tracing::info!("Shutdown signal received");
-
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    tracing::info!("Forcing shutdown after timeout");
 }

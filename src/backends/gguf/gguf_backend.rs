@@ -50,10 +50,10 @@ impl GgufBackend {
             top_k: 40,
             top_p: 0.9,
             repeat_penalty: 1.1,
-            max_tokens: 512,
+            max_tokens: 128,
             seed: None,
             use_gpu: false,
-            max_context_len: Some(2048),
+            max_context_len: Some(1024),
             kv_cache_type: Default::default(),
         };
 
@@ -101,7 +101,7 @@ impl GgufBackend {
         let max_tokens = input
             .get("max_tokens")
             .and_then(|v| v.as_u64())
-            .unwrap_or(512) as usize;
+            .unwrap_or(128) as usize;
 
         let timeout_secs = input
             .get("timeout")
