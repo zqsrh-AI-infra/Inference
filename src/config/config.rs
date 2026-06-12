@@ -10,6 +10,8 @@ pub struct AppConfig {
     pub models: Vec<ModelConfig>,
     #[serde(default)]
     pub logging: LoggingConfig,
+    #[serde(default)]
+    pub default_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,6 +141,7 @@ impl Default for AppConfig {
                 level: default_log_level(),
                 format: LogFormat::Pretty,
             },
+            default_model: None,
         }
     }
 }

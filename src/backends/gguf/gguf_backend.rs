@@ -1,35 +1,39 @@
 use crate::backends::{BackendType, ModelBackend};
 use crate::config::ModelConfig;
 use crate::inference::{
-    Capability, ChatResponse, EmbeddingResponse, InferenceError, InferenceRequest,
-    InferenceResponse, RawResponse,
+    Capability, ChatResponse, ChatMessage, ChatChoice, InferenceError, InferenceRequest,
+    InferenceResponse,
 };
 use async_trait::async_trait;
+use llama_rs::Engine;
+use llama_rs::EngineConfig;
+use llama_rs::model::KVCacheType;
 use parking_lot::RwLock;
-use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
+use std::time::Duration;
+use tokio::time::timeout;
+use tracing::{info, warn};
 
 pub struct GgufBackend {
     config: ModelConfig,
-    model: Arc<RwLock<Option<()>>>,
+    engine: Arc<RwLock<Option<Arc<Engine>>>>,
 }
 
 impl GgufBackend {
     pub fn new(config: &ModelConfig) -> Result<Self, InferenceError> {
         Ok(Self {
             config: config.clone(),
-            model: Arc::new(RwLock::new(None)),
+            engine: Arc::new(RwLock::new(None)),
         })
     }
 
-    fn ensure_model(&self) -> Result<(), InferenceError> {
-        let mut model_guard = self.model.write();
-        if model_guard.is_some() {
-            return Ok(());
+    fn ensure_engine(&self) -> Result<Arc<Engine>, InferenceError> {
+        let mut engine_guard = self.engine.write();
+        if let Some(ref engine) = *engine_guard {
+            return Ok(engine.clone());
         }
 
-        info!("Creating GGUF model from: {:?}", self.config.path);
+        info!("Loading GGUF model from: {:?}", self.config.path);
 
         if !self.config.path.exists() {
             return Err(InferenceError::BackendError(format!(
@@ -38,33 +42,132 @@ impl GgufBackend {
             )));
         }
 
-        *model_guard = Some(());
-        Ok(())
+        let model_path = self.config.path.to_string_lossy().to_string();
+
+        let engine_config = EngineConfig {
+            model_path,
+            tokenizer_path: None,
+            temperature: 0.7,
+            top_k: 40,
+            top_p: 0.9,
+            repeat_penalty: 1.1,
+            max_tokens: 512,
+            seed: None,
+            use_gpu: false,
+            max_context_len: Some(2048),
+            kv_cache_type: Default::default(),
+        };
+
+        let engine = Engine::load(engine_config).map_err(|e| {
+            InferenceError::BackendError(format!("Failed to load GGUF model: {:?}", e))
+        })?;
+
+        let engine = Arc::new(engine);
+        *engine_guard = Some(engine.clone());
+        Ok(engine)
     }
 
-    fn infer_chat(&self, _input: serde_json::Value) -> Result<ChatResponse, InferenceError> {
+    fn build_prompt_from_messages(&self, messages: &[ChatMessage]) -> String {
+        let mut prompt = String::new();
+
+        for msg in messages {
+            match msg.role.as_str() {
+                "system" => {
+                    prompt.push_str(&format!("System: {}\n", msg.content));
+                }
+                "user" => {
+                    prompt.push_str(&format!("User: {}\n", msg.content));
+                }
+                "assistant" => {
+                    prompt.push_str(&format!("Assistant: {}\n", msg.content));
+                }
+                _ => {
+                    prompt.push_str(&format!("{}: {}\n", msg.role, msg.content));
+                }
+            }
+        }
+
+        prompt.push_str("Assistant: ");
+        prompt
+    }
+
+    async fn infer_chat(&self, input: serde_json::Value) -> Result<ChatResponse, InferenceError> {
+        let engine = self.ensure_engine()?;
+
+        let _temperature = input
+            .get("temperature")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.7) as f32;
+
+        let max_tokens = input
+            .get("max_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(512) as usize;
+
+        let timeout_secs = input
+            .get("timeout")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(60);
+
+        let messages: Vec<ChatMessage> = input
+            .get("messages")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
+
+        let prompt = self.build_prompt_from_messages(&messages);
+
+        info!("Running inference with prompt: {}...", &prompt[..prompt.len().min(100)]);
+
+        let engine_clone = engine.clone();
+        let prompt_clone = prompt.clone();
+
+        let spawn_result = timeout(
+            Duration::from_secs(timeout_secs),
+            tokio::task::spawn_blocking(move || {
+                engine_clone.generate(&prompt_clone, max_tokens)
+            })
+        )
+        .await;
+
+        let generated: String = match spawn_result {
+            Ok(Ok(Ok(s))) => s,
+            Ok(Ok(Err(e))) => {
+                return Err(InferenceError::BackendError(format!(
+                    "Inference failed: {:?}", e
+                )));
+            }
+            Ok(Err(e)) => {
+                return Err(InferenceError::BackendError(format!(
+                    "Join error: {:?}", e
+                )));
+            }
+            Err(_) => {
+                return Err(InferenceError::InferenceExecutionError(format!(
+                    "Inference timeout after {} seconds", timeout_secs
+                )));
+            }
+        };
+
+        info!("Generated response: {}...", &generated[..generated.len().min(100)]);
+
+        let created = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
         Ok(ChatResponse {
             id: format!("chat-{}", uuid::Uuid::new_v4()),
             object: "chat.completion".to_string(),
-            created: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            created,
             model: self.config.id.clone(),
-            choices: vec![],
-            usage: crate::inference::Usage {
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                total_tokens: 0,
-            },
-        })
-    }
-
-    fn infer_embedding(&self, _input: serde_json::Value) -> Result<EmbeddingResponse, InferenceError> {
-        Ok(EmbeddingResponse {
-            object: "list".to_string(),
-            data: vec![],
-            model: self.config.id.clone(),
+            choices: vec![ChatChoice {
+                index: 0,
+                message: ChatMessage {
+                    role: "assistant".to_string(),
+                    content: generated,
+                },
+                finish_reason: Some("stop".to_string()),
+            }],
             usage: crate::inference::Usage {
                 prompt_tokens: 0,
                 completion_tokens: 0,
@@ -80,22 +183,16 @@ impl ModelBackend for GgufBackend {
         &self,
         request: InferenceRequest,
     ) -> Result<InferenceResponse, InferenceError> {
-        self.ensure_model()?;
         let capability = self.determine_capability(&request.input)?;
 
         match capability {
             Capability::Chat => {
-                let response = self.infer_chat(request.input)?;
+                let response = self.infer_chat(request.input).await?;
                 Ok(InferenceResponse::Chat(response))
             }
-            Capability::Embedding => {
-                let response = self.infer_embedding(request.input)?;
-                Ok(InferenceResponse::Embedding(response))
-            }
-            _ => Ok(InferenceResponse::Raw(RawResponse {
-                output: serde_json::json!({"status": "placeholder"}),
-                metadata: HashMap::new(),
-            })),
+            _ => Err(InferenceError::CapabilityNotSupported(
+                capability.to_string(),
+            )),
         }
     }
 
@@ -115,7 +212,7 @@ impl ModelBackend for GgufBackend {
 
     async fn warmup(&self) -> Result<(), InferenceError> {
         info!("Warming up GGUF backend for model: {}", self.config.id);
-        self.ensure_model()?;
+        self.ensure_engine()?;
         Ok(())
     }
 }

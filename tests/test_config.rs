@@ -33,6 +33,7 @@ mod app_config_tests {
                 level: "debug".to_string(),
                 format: LogFormat::Json,
             },
+            default_model: None,
         };
 
         let json = serde_json::to_string(&config).unwrap();
