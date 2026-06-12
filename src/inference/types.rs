@@ -127,7 +127,7 @@ pub struct ChatCompletionRequest {
     pub messages: Vec<ChatMessage>,
     #[serde(default)]
     pub stream: bool,
-    #[serde(default)]
+    #[serde(default = "default_temperature")]
     pub temperature: f32,
     #[serde(default)]
     pub max_tokens: Option<usize>,
@@ -135,6 +135,10 @@ pub struct ChatCompletionRequest {
     pub top_p: Option<f32>,
     #[serde(default)]
     pub n: Option<usize>,
+}
+
+fn default_temperature() -> f32 {
+    1.0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
