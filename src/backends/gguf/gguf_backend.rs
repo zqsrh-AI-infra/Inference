@@ -73,33 +73,83 @@ impl GgufBackend {
         Ok(engine)
     }
 
-    fn build_prompt_from_messages(&self, messages: &[ChatMessage]) -> String {
-        let mut prompt = String::new();
+    /// Build a chat prompt using the engine's detected chat template.
+    ///
+    /// The prompt is formatted with chat template markers (e.g. `<|user|>`, `<|assistant|>`)
+    /// so that `Engine::generate()` detects them and skips its own `wrap_prompt()` call.
+    /// This avoids double-wrapping which corrupts the prompt format.
+    fn build_chat_prompt(
+        &self,
+        engine: &Engine,
+        messages: &[ChatMessage],
+    ) -> String {
+        let template = engine.chat_template();
 
-        for msg in messages {
+        let system_msg = messages.iter().find(|m| m.role == "system");
+        let non_system: Vec<&ChatMessage> =
+            messages.iter().filter(|m| m.role != "system").collect();
+
+        if non_system.is_empty() {
+            return String::new();
+        }
+
+        let mut prompt = String::new();
+        let mut first_user_handled = false;
+
+        for (i, msg) in non_system.iter().enumerate() {
             match msg.role.as_str() {
-                "system" => {
-                    prompt.push_str(&format!("System: {}\n", msg.content));
-                }
                 "user" => {
-                    prompt.push_str(&format!("User: {}\n", msg.content));
+                    if !first_user_handled {
+                        first_user_handled = true;
+                        if let Some(sys) = system_msg {
+                            prompt.push_str(
+                                &template.format_first_turn(&sys.content, &msg.content),
+                            );
+                        } else {
+                            // wrap_prompt produces markers (e.g. <|user|>...<|assistant|>)
+                            // that generate() will pass through unchanged
+                            prompt.push_str(&template.wrap_prompt(&msg.content));
+                        }
+                    } else {
+                        prompt.push_str(&template.format_continuation(&msg.content));
+                    }
                 }
                 "assistant" => {
-                    prompt.push_str(&format!("Assistant: {}\n", msg.content));
+                    // Append assistant response as raw text (no template wrapping)
+                    // Check if there's a following user message to determine
+                    // whether to add format_continuation after this
+                    let has_next_user = non_system
+                        .get(i + 1)
+                        .map(|m| m.role == "user")
+                        .unwrap_or(false);
+                    prompt.push_str(&msg.content);
+                    if !has_next_user {
+                        // If this is the last message and it's an assistant,
+                        // still need to trigger generation. Add empty continuation.
+                        prompt.push('\n');
+                    }
                 }
-                _ => {
-                    prompt.push_str(&format!("{}: {}\n", msg.role, msg.content));
-                }
+                _ => {} // Ignore unknown roles
             }
         }
 
-        prompt.push_str("Assistant: ");
+        // Ensure prompt ends with assistant marker so the model generates a response
+        if !prompt.contains("<|assistant|>")
+            && !prompt.contains("<|im_start|>assistant")
+            && !prompt.contains("[/INST]")
+        {
+            // The template already added the assistant prefix via wrap_prompt/format_*
+        }
+
         prompt
     }
 
     async fn infer_chat(&self, input: serde_json::Value) -> Result<ChatResponse, InferenceError> {
         let engine = self.ensure_engine()?;
 
+        // NOTE: Per-request temperature/top_k/top_p are NOT applied because
+        // llama-rs Engine::generate() uses the sampler config set at engine load time.
+        // See EngineConfig in ensure_engine() for the effective values.
         let _temperature = input
             .get("temperature")
             .and_then(|v| v.as_f64())
@@ -141,9 +191,13 @@ impl GgufBackend {
             ));
         };
 
-        let prompt = self.build_prompt_from_messages(&messages);
+        let prompt = self.build_chat_prompt(&engine, &messages);
 
-        info!("Running inference with prompt: {}...", &prompt[..prompt.len().min(100)]);
+        info!(
+            "Chat template: {:?}, prompt: {}...",
+            engine.chat_template(),
+            &prompt[..prompt.len().min(100)]
+        );
 
         let _permit = self
             .semaphore
