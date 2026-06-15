@@ -1,5 +1,5 @@
 use inference_gateway::config::{
-    AppConfig, ServerConfig, ModelConfig, LogFormat,
+    AppConfig, LoadPolicy, ServerConfig, ModelConfig, LogFormat,
 };
 use inference_gateway::backends::BackendType;
 use inference_gateway::inference::Capability;
@@ -120,6 +120,8 @@ mod model_config_tests {
             max_sequence_length: Some(2048),
             inference_timeout_secs: 300,
             use_gpu: false,
+            max_concurrent_requests: None,
+            load_policy: LoadPolicy::Eager,
         }
     }
 

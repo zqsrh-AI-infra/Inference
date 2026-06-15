@@ -12,7 +12,7 @@ use super::handlers::{
     AppState, health_handler, metrics_handler, list_models_handler, get_model_handler,
     load_model_handler, unload_model_handler, inference_handler,
 };
-use super::chat::{chat_completions_handler, chat_completions_stream_handler};
+use super::chat::chat_completions_handler;
 use super::embeddings::embeddings_handler;
 use super::rerank::rerank_handler;
 
@@ -31,7 +31,7 @@ pub fn create_router(
         .route("/health", get(health_handler))
         .route("/metrics", get(metrics_handler))
         .route("/v1/models", get(list_models_handler))
-        .route("/v1/models/{id}", get(get_model_handler))
+        .route("/v1/models/:id", get(get_model_handler))
         .route("/v1/models/load", post(load_model_handler))
         .route("/v1/models/unload", post(unload_model_handler))
         .route("/v1/inference", post(inference_handler))

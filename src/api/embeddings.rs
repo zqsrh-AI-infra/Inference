@@ -13,6 +13,7 @@ pub async fn embeddings_handler(
     let inference_request = InferenceRequest {
         model: request.model.clone(),
         input: serde_json::json!({
+            "capability": "embedding",
             "input": request.input,
         }),
         parameters: Default::default(),

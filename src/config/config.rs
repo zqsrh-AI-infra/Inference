@@ -83,6 +83,18 @@ pub struct ModelConfig {
     pub inference_timeout_secs: u64,
     #[serde(default)]
     pub use_gpu: bool,
+    #[serde(default)]
+    pub max_concurrent_requests: Option<usize>,
+    #[serde(default)]
+    pub load_policy: LoadPolicy,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LoadPolicy {
+    #[default]
+    Eager,
+    Lazy,
 }
 
 fn default_inference_timeout() -> u64 {

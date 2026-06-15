@@ -1,3 +1,3 @@
 pub mod config;
 
-pub use config::{AppConfig, DeviceConfig, DeviceType, LogFormat, LoggingConfig, ModelConfig, ServerConfig, TlsConfig};
+pub use config::{AppConfig, DeviceConfig, DeviceType, LoadPolicy, LogFormat, LoggingConfig, ModelConfig, ServerConfig, TlsConfig};

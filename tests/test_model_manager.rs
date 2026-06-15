@@ -1,5 +1,5 @@
 use inference_gateway::backends::{BackendType, ModelBackend, ModelInfo};
-use inference_gateway::config::{DeviceConfig, DeviceType, ModelConfig};
+use inference_gateway::config::{DeviceConfig, DeviceType, LoadPolicy, ModelConfig};
 use inference_gateway::inference::{Capability, InferenceError, InferenceRequest, InferenceResponse, ChatResponse, Usage};
 use inference_gateway::models::ModelManager;
 use std::path::PathBuf;
@@ -72,6 +72,8 @@ fn create_test_model_config(id: &str) -> ModelConfig {
         max_sequence_length: None,
         inference_timeout_secs: 300,
         use_gpu: false,
+        max_concurrent_requests: None,
+        load_policy: LoadPolicy::Eager,
     }
 }
 

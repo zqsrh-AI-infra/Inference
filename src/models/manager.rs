@@ -1,6 +1,6 @@
 use crate::backends::{BackendType, ModelBackend, ModelInfo};
 use crate::inference::{Capability, InferenceError, InferenceRequest, InferenceResponse};
-use crate::config::ModelConfig;
+use crate::config::{LoadPolicy, ModelConfig};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -74,7 +74,16 @@ impl ModelManager {
                 }
             };
 
-            backend.warmup().await?;
+            let is_lazy = config.load_policy == LoadPolicy::Lazy;
+
+            if !is_lazy {
+                backend.warmup().await?;
+            } else {
+                info!(
+                    "Model {} loaded in lazy mode, warmup deferred to first request",
+                    model_id
+                );
+            }
 
             let model_info = backend.get_model_info();
             self.backends.insert(model_id.clone(), backend);
