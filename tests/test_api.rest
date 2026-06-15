@@ -1,26 +1,96 @@
 
 
 
+###
+curl  http://localhost:8080/api/health
+
+
+
+###
+curl  http://localhost:8080/api/metrics
+
+
+###
+curl  http://localhost:8080/api/v1/models
+
+
+
+###
+curl  http://localhost:8080/api/v1/models/gemma4e4b
+
+
+
+
+###
 curl -X POST http://localhost:8080/api/v1/models/load \
   -H "Content-Type: application/json" \
   -d '{
     "config": {
-      "id": "gemma-4-e4b-it",
-      "name": "Gemma 4B IT",
+      "id": "gemma4e4b",
+      "name": "Gemma4BIT",
       "backend": "Gguf",
-      "path": "/Users/z/.lmstudio/models/lmstudio-community/gemma-4-E4B-it-GGUF/gemma-4-E4B-it-Q4_K_M.gguf",
+      "path": "/Users/z/.lmstudio/models/lmstudio-community/gemma4e4b-GGUF/gemma4e4b-Q4_K_M.gguf",
       "capabilities": ["chat"]
     }
+  }'
+
+###
+curl -X POST http://localhost:8080/api/v1/models/unload \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_id": "gemma4e4b"
+  }'
+
+
+###
+curl -X POST http://localhost:8080/api/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemma4e4b",
+    "messages": [
+      {"role": "user", "content": "你好啊"}
+    ],
+    "temperature": 0.7,
+    "max_tokens": 512
   }'
 
 ###
 curl -X POST http://localhost:8080/api/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gemma-4-e4b-it",
+    "model": "gemma4e4b",
     "messages": [
-      {"role": "user", "content": "你好啊"}
+      {"role": "user", "content": "Hello, who are you?"}
     ],
-    "temperature": 0.7,
-    "max_tokens": 512
+    "stream": true
+  }'
+
+
+  
+###
+curl -X POST http://localhost:8080/api/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemma4e4b",
+    "input": "Hello, who are you?"
+  }'
+
+  
+###
+curl -X POST http://localhost:8080/api/v1/inference \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemma4e4b",
+    "input": "Hello, who are you?"
+  }'
+
+
+
+###
+curl -X POST http://localhost:8080/api/v1/rerank \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemma4e4b",
+    "query": "hello",
+    "documents": ["hellp","oolepr","lloooke"]
   }'
